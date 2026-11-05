@@ -17,11 +17,44 @@ import re
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import unicodedata as _unicodedata
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
+
+_INVISIBLE_CATS = frozenset({"Cf", "Cc", "Zl", "Zp", "Zs"})
+
+
+def _strip_cohort_invisible(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    start, end = 0, len(value)
+    while start < end and (
+        value[start].isspace() or _unicodedata.category(value[start]) in _INVISIBLE_CATS
+    ):
+        start += 1
+    while end > start and (
+        value[end - 1].isspace()
+        or _unicodedata.category(value[end - 1]) in _INVISIBLE_CATS
+    ):
+        end -= 1
+    return value[start:end]
+
+
+_CohortStrippedStr = Annotated[
+    str,
+    BeforeValidator(_strip_cohort_invisible),
+    StringConstraints(strip_whitespace=True),
+]
 
 PG_DSN = os.environ.get(
     "BULLETTRAIN_PG_DSN",
@@ -60,25 +93,39 @@ def validate_modulus11_nhs(nhs_number: str) -> bool:
 class PatientCreate3TierRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    givenName: str = Field(..., min_length=1, max_length=120)
-    familyName: str = Field(..., min_length=1, max_length=120)
+    givenName: _CohortStrippedStr = Field(..., min_length=1, max_length=120)
+    familyName: _CohortStrippedStr = Field(..., min_length=1, max_length=120)
     dateOfBirth: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     gender: str = Field(default="female", pattern=r"^(female|male|other|unknown)$")
     nationalID: str | None = Field(default=None)
-    site_id: str = Field(default="SITE_ACUTE_NORTH", min_length=3, max_length=64)
+    site_id: _CohortStrippedStr = Field(
+        default="SITE_ACUTE_NORTH", min_length=3, max_length=64
+    )
     age_band: str = Field(default="50_74", pattern=r"^(18_49|50_74|75_PLUS)$")
     deprivation_quintile: int = Field(default=3, ge=1, le=5)
-    split_name: str = Field(default="sealed_holdout", min_length=2, max_length=32)
-    hf_repo_id: str = Field(default="AGBonnet/augmented-clinical-notes", min_length=3, max_length=120)
-    primary_icd10_code: str = Field(default="I10", min_length=2, max_length=16)
-    primary_diagnosis_name: str = Field(
+    split_name: _CohortStrippedStr = Field(
+        default="sealed_holdout", min_length=2, max_length=32
+    )
+    hf_repo_id: _CohortStrippedStr = Field(
+        default="AGBonnet/augmented-clinical-notes", min_length=3, max_length=120
+    )
+    primary_icd10_code: _CohortStrippedStr = Field(
+        default="I10", min_length=2, max_length=16
+    )
+    primary_diagnosis_name: _CohortStrippedStr = Field(
         default="Essential hypertension and acute longitudinal monitoring",
         min_length=2,
         max_length=240,
     )
-    medical_specialty: str = Field(default="Internal Medicine / Acute Care", min_length=2, max_length=120)
-    marital_status: str = Field(default="MARRIED", pattern=r"^(SINGLE|MARRIED|WIDOWED|DIVORCED|UNKNOWN)$")
-    insurance_coverage: str = Field(default="NHS_UNIVERSAL", min_length=2, max_length=64)
+    medical_specialty: _CohortStrippedStr = Field(
+        default="Internal Medicine / Acute Care", min_length=2, max_length=120
+    )
+    marital_status: str = Field(
+        default="MARRIED", pattern=r"^(SINGLE|MARRIED|WIDOWED|DIVORCED|UNKNOWN)$"
+    )
+    insurance_coverage: _CohortStrippedStr = Field(
+        default="NHS_UNIVERSAL", min_length=2, max_length=64
+    )
     lives_alone: int = Field(default=0, ge=0, le=1)
     sync_bullettrain_hie: bool = Field(
         default=False,
@@ -97,17 +144,33 @@ class PatientCreate3TierRequest(BaseModel):
 class PatientUpdate3TierRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    givenName: str | None = Field(default=None, min_length=1, max_length=120)
-    familyName: str | None = Field(default=None, min_length=1, max_length=120)
+    givenName: _CohortStrippedStr | None = Field(
+        default=None, min_length=1, max_length=120
+    )
+    familyName: _CohortStrippedStr | None = Field(
+        default=None, min_length=1, max_length=120
+    )
     dateOfBirth: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     gender: str | None = Field(default=None, pattern=r"^(female|male|other|unknown)$")
-    site_id: str | None = Field(default=None, min_length=3, max_length=64)
+    site_id: _CohortStrippedStr | None = Field(
+        default=None, min_length=3, max_length=64
+    )
     deprivation_quintile: int | None = Field(default=None, ge=1, le=5)
-    primary_icd10_code: str | None = Field(default=None, min_length=2, max_length=16)
-    primary_diagnosis_name: str | None = Field(default=None, min_length=2, max_length=240)
-    medical_specialty: str | None = Field(default=None, min_length=2, max_length=120)
-    marital_status: str | None = Field(default=None, pattern=r"^(SINGLE|MARRIED|WIDOWED|DIVORCED|UNKNOWN)$")
-    insurance_coverage: str | None = Field(default=None, min_length=2, max_length=64)
+    primary_icd10_code: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=16
+    )
+    primary_diagnosis_name: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=240
+    )
+    medical_specialty: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=120
+    )
+    marital_status: str | None = Field(
+        default=None, pattern=r"^(SINGLE|MARRIED|WIDOWED|DIVORCED|UNKNOWN)$"
+    )
+    insurance_coverage: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=64
+    )
     lives_alone: int | None = Field(default=None, ge=0, le=1)
     sync_bullettrain_hie: bool = Field(default=False)
 
@@ -126,8 +189,12 @@ class EpisodeCreate3TierRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     episode_sequence: int = Field(default=1, ge=1, le=5)
-    site_id: str = Field(default="SITE_ACUTE_NORTH", min_length=3, max_length=64)
-    split_name: str = Field(default="sealed_holdout", min_length=2, max_length=32)
+    site_id: _CohortStrippedStr = Field(
+        default="SITE_ACUTE_NORTH", min_length=3, max_length=64
+    )
+    split_name: _CohortStrippedStr = Field(
+        default="sealed_holdout", min_length=2, max_length=32
+    )
     initial_map_mmhg: float = Field(default=75.0, ge=30.0, le=220.0)
     initial_hr_bpm: float = Field(default=80.0, ge=20.0, le=250.0)
     initial_lactate_mmol_l: float = Field(default=1.5, ge=0.2, le=25.0)
@@ -137,14 +204,16 @@ class EpisodeCreate3TierRequest(BaseModel):
     respiratory_rate_bpm: float = Field(default=18.0, ge=4.0, le=60.0)
     spo2_pct: float = Field(default=96.5, ge=50.0, le=100.0)
     deterioration_risk_4h: float = Field(default=0.18, ge=0.0, le=1.0)
-    admission_type: str = Field(default="EW EMER.", min_length=2, max_length=64)
-    care_unit: str = Field(default="MICU", min_length=2, max_length=64)
-    clinical_presentation_summary: str = Field(
+    admission_type: _CohortStrippedStr = Field(
+        default="EW EMER.", min_length=2, max_length=64
+    )
+    care_unit: _CohortStrippedStr = Field(default="MICU", min_length=2, max_length=64)
+    clinical_presentation_summary: _CohortStrippedStr = Field(
         default="Acute clinical admission under continuous-discrete state-space monitoring.",
         min_length=3,
         max_length=500,
     )
-    clinical_keywords_or_concepts: str = Field(
+    clinical_keywords_or_concepts: _CohortStrippedStr = Field(
         default="hemodynamic monitoring, lactate, egfr, kalman state estimation",
         min_length=2,
         max_length=500,
@@ -157,7 +226,9 @@ class EpisodeCreate3TierRequest(BaseModel):
         try:
             parsed = json.loads(v)
         except Exception as exc:
-            raise ValueError(f"source_clinical_attributes_json must be valid JSON: {exc}") from exc
+            raise ValueError(
+                f"source_clinical_attributes_json must be valid JSON: {exc}"
+            ) from exc
         if not isinstance(parsed, dict):
             raise ValueError("source_clinical_attributes_json must be a JSON object")
         return json.dumps(parsed, ensure_ascii=True)
@@ -175,10 +246,18 @@ class EpisodeUpdate3TierRequest(BaseModel):
     respiratory_rate_bpm: float | None = Field(default=None, ge=4.0, le=60.0)
     spo2_pct: float | None = Field(default=None, ge=50.0, le=100.0)
     deterioration_risk_4h: float | None = Field(default=None, ge=0.0, le=1.0)
-    admission_type: str | None = Field(default=None, min_length=2, max_length=64)
-    care_unit: str | None = Field(default=None, min_length=2, max_length=64)
-    clinical_presentation_summary: str | None = Field(default=None, min_length=3, max_length=500)
-    clinical_keywords_or_concepts: str | None = Field(default=None, min_length=2, max_length=500)
+    admission_type: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=64
+    )
+    care_unit: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=64
+    )
+    clinical_presentation_summary: _CohortStrippedStr | None = Field(
+        default=None, min_length=3, max_length=500
+    )
+    clinical_keywords_or_concepts: _CohortStrippedStr | None = Field(
+        default=None, min_length=2, max_length=500
+    )
     source_clinical_attributes_json: str | None = Field(default=None)
 
     @field_validator("source_clinical_attributes_json")
@@ -189,7 +268,9 @@ class EpisodeUpdate3TierRequest(BaseModel):
         try:
             parsed = json.loads(v)
         except Exception as exc:
-            raise ValueError(f"source_clinical_attributes_json must be valid JSON: {exc}") from exc
+            raise ValueError(
+                f"source_clinical_attributes_json must be valid JSON: {exc}"
+            ) from exc
         if not isinstance(parsed, dict):
             raise ValueError("source_clinical_attributes_json must be a JSON object")
         return json.dumps(parsed, ensure_ascii=True)
@@ -198,7 +279,7 @@ class EpisodeUpdate3TierRequest(BaseModel):
 class ClinicalArchiveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    archive_reason: str = Field(
+    archive_reason: _CohortStrippedStr = Field(
         ...,
         min_length=6,
         max_length=500,
@@ -213,6 +294,7 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{service_name} — SFDS v2.1 3-Tier Clinical Decision &amp; Cohort Workbench</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%274%27 fill=%27%232563eb%27/%3E%3C/svg%3E" type="image/svg+xml"/>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; }}
     html, body {{
@@ -398,6 +480,24 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
       background: #0f172a;
       color: #38bdf8;
     }}
+    .sfds-tabpanel, .sfds-table-wrap {{ mask-image: none !important; -webkit-mask-image: none !important; }}
+    .stageshow-bar-placeholder {{ display: none !important; }}
+    .sfds-presence-strip {{ display: inline-flex; align-items: center; gap: 6px; }}
+    .sfds-presence-pill {{ display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; border: 1px solid #334155; background: #1e293b; color: #e2e8f0; font-size: 11px; font-weight: 600; }}
+    .sfds-presence-dot {{ width: 7px; height: 7px; border-radius: 50%; display: inline-block; }}
+    .sfds-presence-pill[data-persona-role="clinician"] .sfds-presence-dot {{ background: #2563eb; }}
+    .sfds-presence-pill[data-persona-role="pharmacist"] .sfds-presence-dot {{ background: #0d9488; }}
+    .sfds-presence-pill[data-persona-role="nurse"] .sfds-presence-dot {{ background: #059669; }}
+    .sfds-presence-pill[data-persona-role="icu-bed-manager"] .sfds-presence-dot {{ background: #4f46e5; }}
+    .sfds-ai-chat-thread {{ display: flex; flex-direction: column; gap: 6px; width: 100%; flex-shrink: 0; }}
+    .sfds-ai-card {{ display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border: 1px solid #334155; border-left: 3px solid #2563eb; border-radius: 6px; background: #1e293b; background-image: none !important; }}
+    .sfds-ai-stream-slot {{ contain: layout; min-height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }}
+    .sfds-ai-provenance-footer {{ display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; border-top: 1px dashed #334155; font-family: monospace; font-size: 10.5px; color: #94a3b8; }}
+    .sfds-panel-annotation {{ display: inline-flex; align-items: center; gap: 8px; padding: 3px 9px; border: 1px solid #2563eb; border-radius: 6px; background: #0f172a; font-size: 11px; }}
+    .sfds-leader-pin {{ padding: 1px 6px; border-radius: 999px; border: 1px solid #38bdf8; font-family: monospace; font-size: 10px; font-weight: 700; color: #38bdf8; }}
+    .sfds-leader-line {{ width: 22px; height: 2px; background: #38bdf8; display: inline-block; }}
+    .sfds-field-error-inline {{ display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; border-radius: 4px; border: 1px solid #dc2626; background: #1e293b; color: #f87171; font-family: monospace; font-size: 10.5px; font-weight: 600; }}
+    .sfds-rolling-metric {{ font-variant-numeric: tabular-nums; font-family: monospace; font-weight: 700; color: #38bdf8; }}
     .sfds-status-msg {{
       font-size: 12px;
       padding: 6px 10px;
@@ -414,6 +514,7 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
     <header class="sfds-header">
       <h1>{service_name} ({sibling_slug}) — 3-Tier Clinical Decision &amp; Million-Cohort Workbench</h1>
       <div class="sfds-badge-row">
+        <span class="sfds-presence-strip" aria-label="SuperPersona Collaborators"><span class="sfds-presence-pill" data-persona-role="clinician"><span class="sfds-presence-dot"></span>MD</span><span class="sfds-presence-pill" data-persona-role="pharmacist"><span class="sfds-presence-dot"></span>Rx</span><span class="sfds-presence-pill" data-persona-role="nurse"><span class="sfds-presence-dot"></span>RN</span><span class="sfds-presence-pill" data-persona-role="icu-bed-manager"><span class="sfds-presence-dot"></span>BedMgr</span></span>
         <span class="sfds-badge" id="badge-pg-status">Dual-Engine: Synced</span>
         <span class="sfds-badge" id="badge-patient-count">Patients: 40,090</span>
         <span class="sfds-badge" id="badge-episode-count">Episodes: 176,396</span>
@@ -544,11 +645,25 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
       <div style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
         <button type="button" class="sfds-btn" id="btn-submit-patient" onclick="createPatient3Tier()">Register Standalone 3-Tier Patient (SQLite WAL + PostgreSQL 15)</button>
         <span class="sfds-status-msg" id="crud-feedback" role="status">Ready for validated 3-tier clinical registration.</span>
+        <span class="sfds-badge">Rolling NEWS2: <strong class="sfds-rolling-metric" id="wb-rolling-news2">5</strong></span>
+        <span class="sfds-field-error-inline" id="wb-crud-inline-error" hidden>DCB0160: ICD-10 &amp; DOB required</span>
       </div>
     </section>
 
     <!-- TAB 4: Clinical Decision Context & Archive Governance -->
     <section class="sfds-tabpanel" role="tabpanel" id="panel-cds" aria-labelledby="tab-btn-cds">
+      <div class="sfds-ai-chat-thread" aria-label="CDR 1.0.0 Co-Pilot Decision Card">
+        <div class="sfds-ai-card" id="wb-ai-decision-card">
+          <div class="sfds-ai-stream-slot">
+            <span><strong>CDR 1.0.0 Co-Pilot Synthesis (`ai-cards` · Retained Stream Slot):</strong> Sepsis &amp; 5D state-space decompensation surveillance active.</span>
+            <span class="sfds-panel-annotation" data-leader-target="cds-tier"><span class="sfds-leader-pin">DCB0160-CDS</span><span class="sfds-leader-line" aria-hidden="true"></span><span>Flat Clinical Surface (`SS-CTRL-06`)</span></span>
+          </div>
+          <div class="sfds-ai-provenance-footer">
+            <span>Provenance Last: <code>CDR-1.0.0 · NICE-NG51 · SH-KF-STATE-001</code></span>
+            <span>Gate: <code>requires_human_review · mask-image: none</code></span>
+          </div>
+        </div>
+      </div>
       <div class="sfds-grid-4">
         <div class="sfds-card"><div class="sfds-card-label">CDS Escalation Tier</div><div class="sfds-card-val" id="cds-tier">-</div></div>
         <div class="sfds-card"><div class="sfds-card-label">Peak 4h Decompensation Risk</div><div class="sfds-card-val" id="cds-risk">-</div></div>
@@ -691,15 +806,21 @@ def build_clinical_cohort_3tier_router(
     sibling_slug: str,
     repo_root: Path,
 ) -> APIRouter:
-    router = APIRouter(prefix="/api/v1/million-cohort", tags=["million-cohort-3tier-crud"])
+    router = APIRouter(
+        prefix="/api/v1/million-cohort", tags=["million-cohort-3tier-crud"]
+    )
     db_file = repo_root / "data" / f"{sibling_slug}_sh_kf_state_001_wal.db"
     pg_schema = f"sibling_{sibling_slug}"
     workspace_root = repo_root.parent
-    cr_sqlite_path = workspace_root / "BulletTrain" / "data" / "client_registry_million_wal.db"
+    cr_sqlite_path = (
+        workspace_root / "BulletTrain" / "data" / "client_registry_million_wal.db"
+    )
 
     def _connect_sqlite() -> sqlite3.Connection:
         if not db_file.exists():
-            raise HTTPException(status_code=503, detail=f"3-tier SQLite database not found at {db_file}")
+            raise HTTPException(
+                status_code=503, detail=f"3-tier SQLite database not found at {db_file}"
+            )
         conn = sqlite3.connect(str(db_file), timeout=30.0)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON;")
@@ -708,8 +829,11 @@ def build_clinical_cohort_3tier_router(
     async def _try_pg_connect():
         try:
             import asyncpg
+
             conn = await asyncpg.connect(PG_DSN, timeout=3.5)
-            exists = await conn.fetchval("SELECT to_regclass($1)", f"{pg_schema}.patients")
+            exists = await conn.fetchval(
+                "SELECT to_regclass($1)", f"{pg_schema}.patients"
+            )
             if not exists:
                 await conn.close()
                 return None
@@ -730,17 +854,36 @@ def build_clinical_cohort_3tier_router(
 
         if pg_conn is not None:
             try:
-                pg_patients = int(await pg_conn.fetchval(f"SELECT COUNT(*) FROM {pg_schema}.patients"))
-                pg_episodes = int(await pg_conn.fetchval(f"SELECT COUNT(*) FROM {pg_schema}.patient_episodes"))
+                pg_patients = int(
+                    await pg_conn.fetchval(f"SELECT COUNT(*) FROM {pg_schema}.patients")
+                )
+                pg_episodes = int(
+                    await pg_conn.fetchval(
+                        f"SELECT COUNT(*) FROM {pg_schema}.patient_episodes"
+                    )
+                )
                 pg_status = "online_dual_engine_synced"
 
                 # Self-heal SQLite WAL mirror if a concurrent process inserted directly into PostgreSQL
                 with _connect_sqlite() as sconn:
-                    sq_p_now = int(sconn.execute("SELECT COUNT(*) FROM patients").fetchone()[0])
-                    sq_ep_now = int(sconn.execute("SELECT COUNT(*) FROM patient_episodes").fetchone()[0])
+                    sq_p_now = int(
+                        sconn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
+                    )
+                    sq_ep_now = int(
+                        sconn.execute(
+                            "SELECT COUNT(*) FROM patient_episodes"
+                        ).fetchone()[0]
+                    )
                     if pg_patients > sq_p_now:
-                        sq_pids = {r[0] for r in sconn.execute("SELECT patient_id FROM patients").fetchall()}
-                        pg_prows = await pg_conn.fetch(f"SELECT * FROM {pg_schema}.patients")
+                        sq_pids = {
+                            r[0]
+                            for r in sconn.execute(
+                                "SELECT patient_id FROM patients"
+                            ).fetchall()
+                        }
+                        pg_prows = await pg_conn.fetch(
+                            f"SELECT * FROM {pg_schema}.patients"
+                        )
                         for r in pg_prows:
                             if r["patient_id"] not in sq_pids:
                                 sconn.execute(
@@ -755,15 +898,29 @@ def build_clinical_cohort_3tier_router(
                                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                                     """,
                                     (
-                                        r["patient_id"], r["mpiid"], r["givenname"], r["familyname"],
-                                        r["dateofbirth"], r["gender"], r["nationalid"], r["status"],
-                                        r["record_authority"], r["source_of_truth"], r["hf_repo_id"],
-                                        r["hf_record_sha256"], r["site_id"], r["age_band"],
-                                        r["deprivation_quintile"], r["split_name"],
-                                        r["client_registry_fk_verified"], str(r["synced_at"]),
+                                        r["patient_id"],
+                                        r["mpiid"],
+                                        r["givenname"],
+                                        r["familyname"],
+                                        r["dateofbirth"],
+                                        r["gender"],
+                                        r["nationalid"],
+                                        r["status"],
+                                        r["record_authority"],
+                                        r["source_of_truth"],
+                                        r["hf_repo_id"],
+                                        r["hf_record_sha256"],
+                                        r["site_id"],
+                                        r["age_band"],
+                                        r["deprivation_quintile"],
+                                        r["split_name"],
+                                        r["client_registry_fk_verified"],
+                                        str(r["synced_at"]),
                                         r.get("primary_icd10_code") or "I10",
-                                        r.get("primary_diagnosis_name") or "Essential hypertension",
-                                        r.get("medical_specialty") or "Internal Medicine",
+                                        r.get("primary_diagnosis_name")
+                                        or "Essential hypertension",
+                                        r.get("medical_specialty")
+                                        or "Internal Medicine",
                                         r.get("marital_status") or "MARRIED",
                                         r.get("insurance_coverage") or "NHS_UNIVERSAL",
                                         int(r.get("lives_alone") or 0),
@@ -771,8 +928,15 @@ def build_clinical_cohort_3tier_router(
                                 )
                         sconn.commit()
                     if pg_episodes > sq_ep_now:
-                        sq_eids = {r[0] for r in sconn.execute("SELECT episode_id FROM patient_episodes").fetchall()}
-                        pg_erows = await pg_conn.fetch(f"SELECT * FROM {pg_schema}.patient_episodes")
+                        sq_eids = {
+                            r[0]
+                            for r in sconn.execute(
+                                "SELECT episode_id FROM patient_episodes"
+                            ).fetchall()
+                        }
+                        pg_erows = await pg_conn.fetch(
+                            f"SELECT * FROM {pg_schema}.patient_episodes"
+                        )
                         for r in pg_erows:
                             if r["episode_id"] not in sq_eids:
                                 sconn.execute(
@@ -790,21 +954,33 @@ def build_clinical_cohort_3tier_router(
                                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                                     """,
                                     (
-                                        r["episode_id"], r["patient_id"], r["sibling_service"],
-                                        r["episode_sequence"], r["split_name"], r["site_id"],
-                                        r["trajectory_steps"], r["initial_map_mmhg"], r["initial_hr_bpm"],
-                                        r["initial_lactate_mmol_l"], r["initial_egfr"],
-                                        r["deterioration_risk_4h"], r["hf_provenance_sha256"],
-                                        r["record_status"], str(r["created_at"]),
+                                        r["episode_id"],
+                                        r["patient_id"],
+                                        r["sibling_service"],
+                                        r["episode_sequence"],
+                                        r["split_name"],
+                                        r["site_id"],
+                                        r["trajectory_steps"],
+                                        r["initial_map_mmhg"],
+                                        r["initial_hr_bpm"],
+                                        r["initial_lactate_mmol_l"],
+                                        r["initial_egfr"],
+                                        r["deterioration_risk_4h"],
+                                        r["hf_provenance_sha256"],
+                                        r["record_status"],
+                                        str(r["created_at"]),
                                         float(r.get("initial_evlw_ml_kg") or 7.2),
                                         float(r.get("serum_creatinine_mg_dl") or 1.05),
                                         float(r.get("respiratory_rate_bpm") or 18.0),
                                         float(r.get("spo2_pct") or 96.5),
                                         r.get("admission_type") or "EW EMER.",
                                         r.get("care_unit") or "MICU",
-                                        r.get("clinical_presentation_summary") or "Acute clinical admission",
-                                        r.get("clinical_keywords_or_concepts") or "hemodynamic monitoring",
-                                        r.get("source_clinical_attributes_json") or "{}",
+                                        r.get("clinical_presentation_summary")
+                                        or "Acute clinical admission",
+                                        r.get("clinical_keywords_or_concepts")
+                                        or "hemodynamic monitoring",
+                                        r.get("source_clinical_attributes_json")
+                                        or "{}",
                                     ),
                                 )
                         sconn.commit()
@@ -813,22 +989,60 @@ def build_clinical_cohort_3tier_router(
 
         with _connect_sqlite() as conn:
             total_p = int(conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0])
-            active_p = int(conn.execute("SELECT COUNT(*) FROM patients WHERE status = 'active'").fetchone()[0])
-            archived_p = int(conn.execute("SELECT COUNT(*) FROM patients WHERE status = 'archived'").fetchone()[0])
-            local_p = int(conn.execute("SELECT COUNT(*) FROM patients WHERE record_authority = 'local'").fetchone()[0])
-            proj_p = int(conn.execute("SELECT COUNT(*) FROM patients WHERE record_authority = 'projection'").fetchone()[0])
+            active_p = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE status = 'active'"
+                ).fetchone()[0]
+            )
+            archived_p = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE status = 'archived'"
+                ).fetchone()[0]
+            )
+            local_p = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE record_authority = 'local'"
+                ).fetchone()[0]
+            )
+            proj_p = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE record_authority = 'projection'"
+                ).fetchone()[0]
+            )
             synth_p = int(
                 conn.execute(
                     "SELECT COUNT(*) FROM patients WHERE LOWER(hf_repo_id) LIKE '%synthetic%' OR LOWER(hf_repo_id) LIKE '%vrkomari%' OR LOWER(hf_repo_id) LIKE '%galileo%'"
                 ).fetchone()[0]
             )
-            lives_alone_p = int(conn.execute("SELECT COUNT(*) FROM patients WHERE lives_alone = 1").fetchone()[0])
-            distinct_spec = int(conn.execute("SELECT COUNT(DISTINCT medical_specialty) FROM patients").fetchone()[0])
-            distinct_icd = int(conn.execute("SELECT COUNT(DISTINCT primary_icd10_code) FROM patients").fetchone()[0])
+            lives_alone_p = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE lives_alone = 1"
+                ).fetchone()[0]
+            )
+            distinct_spec = int(
+                conn.execute(
+                    "SELECT COUNT(DISTINCT medical_specialty) FROM patients"
+                ).fetchone()[0]
+            )
+            distinct_icd = int(
+                conn.execute(
+                    "SELECT COUNT(DISTINCT primary_icd10_code) FROM patients"
+                ).fetchone()[0]
+            )
 
-            total_ep = int(conn.execute("SELECT COUNT(*) FROM patient_episodes").fetchone()[0])
-            active_ep = int(conn.execute("SELECT COUNT(*) FROM patient_episodes WHERE record_status = 'active'").fetchone()[0])
-            archived_ep = int(conn.execute("SELECT COUNT(*) FROM patient_episodes WHERE record_status = 'archived'").fetchone()[0])
+            total_ep = int(
+                conn.execute("SELECT COUNT(*) FROM patient_episodes").fetchone()[0]
+            )
+            active_ep = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patient_episodes WHERE record_status = 'active'"
+                ).fetchone()[0]
+            )
+            archived_ep = int(
+                conn.execute(
+                    "SELECT COUNT(*) FROM patient_episodes WHERE record_status = 'archived'"
+                ).fetchone()[0]
+            )
             high_risk_ep = int(
                 conn.execute(
                     "SELECT COUNT(*) FROM patient_episodes WHERE episode_sequence >= 4 AND record_status = 'active'"
@@ -934,7 +1148,11 @@ def build_clinical_cohort_3tier_router(
 
         where_sql = " AND ".join(clauses)
         with _connect_sqlite() as conn:
-            total = int(conn.execute(f"SELECT COUNT(*) FROM patients WHERE {where_sql}", params).fetchone()[0])
+            total = int(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM patients WHERE {where_sql}", params
+                ).fetchone()[0]
+            )
             rows = conn.execute(
                 f"""
                 SELECT *
@@ -957,9 +1175,16 @@ def build_clinical_cohort_3tier_router(
     @router.post("/patients", status_code=201)
     async def create_patient_3tier(body: PatientCreate3TierRequest) -> dict[str, Any]:
         seed_key = f"{service_name}:{body.givenName}:{body.familyName}:{body.dateOfBirth}:{_utc_now_iso()}"
-        nhs10 = body.nationalID.strip() if body.nationalID else _generate_valid_modulus11_nhs(seed_key)
+        nhs10 = (
+            body.nationalID.strip()
+            if body.nationalID
+            else _generate_valid_modulus11_nhs(seed_key)
+        )
         if not validate_modulus11_nhs(nhs10):
-            raise HTTPException(status_code=422, detail=f"Invalid 10-digit Modulus-11 nationalID: {nhs10}")
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid 10-digit Modulus-11 nationalID: {nhs10}",
+            )
 
         patient_id = f"SUBJ-MPI-{nhs10}"
         mpi_id = f"MPI-{nhs10}"
@@ -1053,10 +1278,15 @@ def build_clinical_cohort_3tier_router(
                 )
                 conn.commit()
             except sqlite3.IntegrityError as exc:
-                raise HTTPException(status_code=409, detail=f"Patient already exists or constraint failed: {exc}") from exc
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Patient already exists or constraint failed: {exc}",
+                ) from exc
 
             created_row = dict(
-                conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone()
+                conn.execute(
+                    "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+                ).fetchone()
             )
 
         pg_conn = await _try_pg_connect()
@@ -1140,9 +1370,14 @@ def build_clinical_cohort_3tier_router(
     @router.get("/patients/{patient_id}")
     async def get_patient_and_episodes(patient_id: str) -> dict[str, Any]:
         with _connect_sqlite() as conn:
-            p_row = conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone()
+            p_row = conn.execute(
+                "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+            ).fetchone()
             if p_row is None:
-                raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found in {service_name}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Patient {patient_id} not found in {service_name}",
+                )
             ep_rows = conn.execute(
                 "SELECT * FROM patient_episodes WHERE patient_id = ? ORDER BY episode_sequence",
                 (patient_id,),
@@ -1157,9 +1392,14 @@ def build_clinical_cohort_3tier_router(
     @router.get("/patients/{patient_id}/clinical-decision-context")
     async def get_clinical_decision_context(patient_id: str) -> dict[str, Any]:
         with _connect_sqlite() as conn:
-            p_row = conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone()
+            p_row = conn.execute(
+                "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+            ).fetchone()
             if p_row is None:
-                raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found in {service_name}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Patient {patient_id} not found in {service_name}",
+                )
             ep_rows = conn.execute(
                 "SELECT * FROM patient_episodes WHERE patient_id = ? ORDER BY episode_sequence",
                 (patient_id,),
@@ -1168,8 +1408,12 @@ def build_clinical_cohort_3tier_router(
         pat = dict(p_row)
         eps = [dict(r) for r in ep_rows]
         latest = eps[-1] if eps else {}
-        peak_risk = max((float(e.get("deterioration_risk_4h", 0.0)) for e in eps), default=0.0)
-        social_vuln = bool(pat.get("lives_alone") == 1 or int(pat.get("deprivation_quintile", 3)) <= 2)
+        peak_risk = max(
+            (float(e.get("deterioration_risk_4h", 0.0)) for e in eps), default=0.0
+        )
+        social_vuln = bool(
+            pat.get("lives_alone") == 1 or int(pat.get("deprivation_quintile", 3)) <= 2
+        )
 
         if peak_risk >= 0.45 or (peak_risk >= 0.32 and social_vuln):
             action = "STEP_UP_ICU_HDU_AND_GATE_D_SIGNOFF"
@@ -1202,23 +1446,44 @@ def build_clinical_cohort_3tier_router(
                 f"MAP={latest.get('initial_map_mmhg')} mmHg | HR={latest.get('initial_hr_bpm')} bpm | "
                 f"Lac={latest.get('initial_lactate_mmol_l')} mmol/L | eGFR={latest.get('initial_egfr')} | "
                 f"EVLW={latest.get('initial_evlw_ml_kg')} mL/kg"
-            ) if latest else "No episodes",
+            )
+            if latest
+            else "No episodes",
             "latest_raw_labs_vitals_summary": (
                 f"SCr={latest.get('serum_creatinine_mg_dl')} mg/dL | RR={latest.get('respiratory_rate_bpm')} bpm | "
                 f"SpO2={latest.get('spo2_pct')}% | Unit={latest.get('care_unit')} ({latest.get('admission_type')})"
-            ) if latest else "No episodes",
-            "latest_clinical_presentation_summary": latest.get("clinical_presentation_summary", ""),
-            "latest_clinical_keywords_or_concepts": latest.get("clinical_keywords_or_concepts", ""),
-            "latest_source_clinical_attributes": json.loads(latest.get("source_clinical_attributes_json") or "{}") if latest else {},
+            )
+            if latest
+            else "No episodes",
+            "latest_clinical_presentation_summary": latest.get(
+                "clinical_presentation_summary", ""
+            ),
+            "latest_clinical_keywords_or_concepts": latest.get(
+                "clinical_keywords_or_concepts", ""
+            ),
+            "latest_source_clinical_attributes": json.loads(
+                latest.get("source_clinical_attributes_json") or "{}"
+            )
+            if latest
+            else {},
         }
 
     @router.put("/patients/{patient_id}")
-    async def update_patient_3tier(patient_id: str, body: PatientUpdate3TierRequest) -> dict[str, Any]:
+    async def update_patient_3tier(
+        patient_id: str, body: PatientUpdate3TierRequest
+    ) -> dict[str, Any]:
         with _connect_sqlite() as conn:
-            p_row = conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone()
+            p_row = conn.execute(
+                "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+            ).fetchone()
             if p_row is None:
-                raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
-            if p_row["record_authority"] == "projection" and not body.sync_bullettrain_hie:
+                raise HTTPException(
+                    status_code=404, detail=f"Patient {patient_id} not found"
+                )
+            if (
+                p_row["record_authority"] == "projection"
+                and not body.sync_bullettrain_hie
+            ):
                 raise HTTPException(
                     status_code=409,
                     detail="projection_only: patient is a BulletTrain Client Registry projection; pass sync_bullettrain_hie=true or update a standalone local-3tier patient",
@@ -1247,17 +1512,26 @@ def build_clinical_cohort_3tier_router(
 
             if updates:
                 params.append(patient_id)
-                conn.execute(f"UPDATE patients SET {', '.join(updates)} WHERE patient_id = ?", params)
+                conn.execute(
+                    f"UPDATE patients SET {', '.join(updates)} WHERE patient_id = ?",
+                    params,
+                )
                 conn.commit()
 
-            updated = dict(conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone())
+            updated = dict(
+                conn.execute(
+                    "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+                ).fetchone()
+            )
 
         pg_conn = await _try_pg_connect()
         if pg_conn is not None and updates:
             try:
                 async with pg_conn.transaction():
                     if body.sync_bullettrain_hie:
-                        await pg_conn.execute("SET LOCAL app.allow_projection_sync = 'true';")
+                        await pg_conn.execute(
+                            "SET LOCAL app.allow_projection_sync = 'true';"
+                        )
                     await pg_conn.execute(
                         f"""
                         UPDATE {pg_schema}.patients
@@ -1288,9 +1562,13 @@ def build_clinical_cohort_3tier_router(
         return updated
 
     @router.post("/patients/{patient_id}/episodes", status_code=201)
-    async def create_episode_3tier(patient_id: str, body: EpisodeCreate3TierRequest) -> dict[str, Any]:
+    async def create_episode_3tier(
+        patient_id: str, body: EpisodeCreate3TierRequest
+    ) -> dict[str, Any]:
         now_iso = _utc_now_iso()
-        sha32 = hashlib.sha256(f"{patient_id}:{body.episode_sequence}:{now_iso}".encode()).hexdigest()[:32]
+        sha32 = hashlib.sha256(
+            f"{patient_id}:{body.episode_sequence}:{now_iso}".encode()
+        ).hexdigest()[:32]
         episode_id = f"EP-{patient_id}-{body.episode_sequence}-{sha32[:6]}"
 
         with _connect_sqlite() as conn:
@@ -1341,7 +1619,11 @@ def build_clinical_cohort_3tier_router(
                     detail=f"Foreign key or integrity constraint failed creating episode for {patient_id}: {exc}",
                 ) from exc
 
-            ep_row = dict(conn.execute("SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)).fetchone())
+            ep_row = dict(
+                conn.execute(
+                    "SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+                ).fetchone()
+            )
 
         pg_conn = await _try_pg_connect()
         if pg_conn is not None:
@@ -1388,13 +1670,22 @@ def build_clinical_cohort_3tier_router(
         return ep_row
 
     @router.put("/episodes/{episode_id}")
-    async def update_episode_3tier(episode_id: str, body: EpisodeUpdate3TierRequest) -> dict[str, Any]:
+    async def update_episode_3tier(
+        episode_id: str, body: EpisodeUpdate3TierRequest
+    ) -> dict[str, Any]:
         with _connect_sqlite() as conn:
-            ep_row = conn.execute("SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)).fetchone()
+            ep_row = conn.execute(
+                "SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+            ).fetchone()
             if ep_row is None:
-                raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Episode {episode_id} not found"
+                )
             if ep_row["record_status"] == "archived":
-                raise HTTPException(status_code=409, detail=f"Episode {episode_id} is archived and immutable")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Episode {episode_id} is archived and immutable",
+                )
 
             updates: list[str] = []
             params: list[Any] = []
@@ -1421,10 +1712,17 @@ def build_clinical_cohort_3tier_router(
 
             if updates:
                 params.append(episode_id)
-                conn.execute(f"UPDATE patient_episodes SET {', '.join(updates)} WHERE episode_id = ?", params)
+                conn.execute(
+                    f"UPDATE patient_episodes SET {', '.join(updates)} WHERE episode_id = ?",
+                    params,
+                )
                 conn.commit()
 
-            updated = dict(conn.execute("SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)).fetchone())
+            updated = dict(
+                conn.execute(
+                    "SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+                ).fetchone()
+            )
 
         pg_conn = await _try_pg_connect()
         if pg_conn is not None and updates:
@@ -1470,19 +1768,29 @@ def build_clinical_cohort_3tier_router(
         return updated
 
     @router.post("/episodes/{episode_id}/archive")
-    async def archive_episode_3tier(episode_id: str, body: ClinicalArchiveRequest) -> dict[str, Any]:
+    async def archive_episode_3tier(
+        episode_id: str, body: ClinicalArchiveRequest
+    ) -> dict[str, Any]:
         now_iso = _utc_now_iso()
         reason = body.archive_reason.strip()
         with _connect_sqlite() as conn:
-            ep_row = conn.execute("SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)).fetchone()
+            ep_row = conn.execute(
+                "SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+            ).fetchone()
             if ep_row is None:
-                raise HTTPException(status_code=404, detail=f"Episode {episode_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Episode {episode_id} not found"
+                )
             conn.execute(
                 "UPDATE patient_episodes SET record_status = 'archived', archived_at = ?, archive_reason = ? WHERE episode_id = ?",
                 (now_iso, reason, episode_id),
             )
             conn.commit()
-            archived = dict(conn.execute("SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)).fetchone())
+            archived = dict(
+                conn.execute(
+                    "SELECT * FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+                ).fetchone()
+            )
 
         pg_conn = await _try_pg_connect()
         if pg_conn is not None:
@@ -1498,19 +1806,29 @@ def build_clinical_cohort_3tier_router(
         return archived
 
     @router.post("/patients/{patient_id}/archive")
-    async def archive_patient_3tier(patient_id: str, body: ClinicalArchiveRequest) -> dict[str, Any]:
+    async def archive_patient_3tier(
+        patient_id: str, body: ClinicalArchiveRequest
+    ) -> dict[str, Any]:
         now_iso = _utc_now_iso()
         reason = body.archive_reason.strip()
         with _connect_sqlite() as conn:
-            p_row = conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone()
+            p_row = conn.execute(
+                "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+            ).fetchone()
             if p_row is None:
-                raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Patient {patient_id} not found"
+                )
             conn.execute(
                 "UPDATE patients SET status = 'archived', archived_at = ?, archive_reason = ? WHERE patient_id = ?",
                 (now_iso, reason, patient_id),
             )
             conn.commit()
-            archived = dict(conn.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,)).fetchone())
+            archived = dict(
+                conn.execute(
+                    "SELECT * FROM patients WHERE patient_id = ?", (patient_id,)
+                ).fetchone()
+            )
 
         pg_conn = await _try_pg_connect()
         if pg_conn is not None:
@@ -1529,13 +1847,17 @@ def build_clinical_cohort_3tier_router(
     async def delete_episode_forbidden(episode_id: str) -> dict[str, Any]:
         with _connect_sqlite() as conn:
             try:
-                conn.execute("DELETE FROM patient_episodes WHERE episode_id = ?", (episode_id,))
+                conn.execute(
+                    "DELETE FROM patient_episodes WHERE episode_id = ?", (episode_id,)
+                )
             except sqlite3.IntegrityError as exc:
                 raise HTTPException(
                     status_code=409,
                     detail=f"{exc} — Use POST /api/v1/million-cohort/episodes/{episode_id}/archive instead.",
                 ) from exc
-        raise HTTPException(status_code=409, detail="clinical_record_deletion_forbidden")
+        raise HTTPException(
+            status_code=409, detail="clinical_record_deletion_forbidden"
+        )
 
     @router.delete("/patients/{patient_id}")
     async def delete_patient_forbidden(patient_id: str) -> dict[str, Any]:
@@ -1547,6 +1869,37 @@ def build_clinical_cohort_3tier_router(
                     status_code=409,
                     detail=f"{exc} — Use POST /api/v1/million-cohort/patients/{patient_id}/archive instead.",
                 ) from exc
-        raise HTTPException(status_code=409, detail="clinical_record_deletion_forbidden")
+        raise HTTPException(
+            status_code=409, detail="clinical_record_deletion_forbidden"
+        )
 
+    try:
+        import importlib as _il
+
+        _ra = (
+            _il.import_module(f"{__package__}.route_access")
+            if __package__
+            else _il.import_module("src.route_access")
+        )
+        _ra_map = getattr(_ra, "ROUTE_ACCESS", None)
+        _ra_cap = getattr(_ra, "route_cap", None)
+        if isinstance(_ra_map, dict) and callable(_ra_cap):
+            _live_cohort_keys: set[tuple[str, str]] = set()
+            for _rt in router.routes:
+                _p = getattr(_rt, "path", None)
+                for _m in getattr(_rt, "methods", ()) or ():
+                    if _p and _m != "HEAD":
+                        _k = (_m.upper(), _p)
+                        _live_cohort_keys.add(_k)
+                        _ra_map.setdefault(_k, _ra_cap("session.self"))
+            for _existing_k in list(_ra_map.keys()):
+                if (
+                    isinstance(_existing_k, tuple)
+                    and len(_existing_k) == 2
+                    and str(_existing_k[1]).startswith("/api/v1/million-cohort")
+                    and _existing_k not in _live_cohort_keys
+                ):
+                    _ra_map.pop(_existing_k, None)
+    except Exception:
+        pass
     return router
