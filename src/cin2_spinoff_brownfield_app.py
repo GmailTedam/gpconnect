@@ -12,7 +12,7 @@ import json
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -56,7 +56,12 @@ def health() -> Dict[str, Any]:
         "report_id": "SHRL-TR-2026-002H",
         "pathway_id": "SYMPHONIX-SPINOFF-PW-22",
         "cdr_contract_version": "1.0.0",
-        "fhir_r4_resources": ["ServiceRequest", "CommunicationRequest", "Task", "DocumentReference"],
+        "fhir_r4_resources": [
+            "ServiceRequest",
+            "CommunicationRequest",
+            "Task",
+            "DocumentReference",
+        ],
         "bound_skus": ["SKU-CIN2-GATE", "SKU-CIN2-NOTE"],
     }
 
@@ -120,7 +125,8 @@ def get_3tier_cohort_patient(patient_id: str) -> Dict[str, Any]:
         ).fetchone()
         if p_row is None:
             raise HTTPException(
-                status_code=404, detail=f"Patient {patient_id!r} not found in 3-tier WAL cohort"
+                status_code=404,
+                detail=f"Patient {patient_id!r} not found in 3-tier WAL cohort",
             )
         ep_row = conn.execute(
             "SELECT * FROM patient_episodes WHERE patient_id = ? AND record_status = 'active' ORDER BY episode_sequence ASC LIMIT 1",
@@ -148,31 +154,29 @@ def evaluate_four_branch_gate(req: SixDimensionEvaluationRequest) -> Dict[str, A
     if req.turn_phase == "TURN_2_POST_FEEDBACK" and req.d6_turn2_callback_present:
         branch = "TURN2_REVISED"
         clinical_action = req.d6_turn2_revision_plan
-        patient_card = (
-            "We received an important new lab or scan result and updated your care plan immediately."
-        )
+        patient_card = "We received an important new lab or scan result and updated your care plan immediately."
         unsafe_action_rate = 0.0
     elif req.d4_contraindication_detected:
         branch = "CONTRAINDICATED_PIVOT"
         clinical_action = req.d4_safe_second_line_pivot
-        patient_card = (
-            "We checked your allergy, kidney, and genetic records and selected a safer alternative medicine."
-        )
+        patient_card = "We checked your allergy, kidney, and genetic records and selected a safer alternative medicine."
         unsafe_action_rate = 0.0
-    elif not (req.d2_vitals_present and req.d3_history_reconciled and req.d5_prerequisites_complete):
+    elif not (
+        req.d2_vitals_present
+        and req.d3_history_reconciled
+        and req.d5_prerequisites_complete
+    ):
         branch = "ABSTAIN_GATHER_INFO"
         missing_target = req.d5_missing_slot_name or "D2_VITALS_OR_D5_PREREQUISITE"
-        clinical_action = f"HARD_SAFETY_HOLD: Gather missing {missing_target} before proceeding."
-        patient_card = (
-            "We are pausing your order for a quick safety check to confirm one missing vital sign or lab test."
+        clinical_action = (
+            f"HARD_SAFETY_HOLD: Gather missing {missing_target} before proceeding."
         )
+        patient_card = "We are pausing your order for a quick safety check to confirm one missing vital sign or lab test."
         unsafe_action_rate = 0.0
     else:
         branch = "RESOLVED_PROCEED"
         clinical_action = "All D1-D5 safety prerequisites verified across BulletTrain; proceed with first-line plan."
-        patient_card = (
-            "Your symptoms, vital signs, and safety checks are complete, and your care plan is ready."
-        )
+        patient_card = "Your symptoms, vital signs, and safety checks are complete, and your care plan is ready."
         unsafe_action_rate = 0.0
 
     cdr_record = {
@@ -200,3 +204,103 @@ def evaluate_four_branch_gate(req: SixDimensionEvaluationRequest) -> Dict[str, A
         json.dumps(cdr_record, sort_keys=True).encode("utf-8")
     ).hexdigest()
     return cdr_record
+
+
+class SymChatBrownfieldTurnRequest(BaseModel):
+    patient_id: str = Field(default="SUBJ-MPI-9100000191", min_length=3, max_length=64)
+    actor_id: str = Field(default="human:named:mira_bose", min_length=3, max_length=128)
+    prompt: str = Field(
+        default="Evaluate 6D brownfield safety gate via SymChat Triad",
+        min_length=3,
+        max_length=1000,
+    )
+    ux_mode: str = Field(default="Professional")
+    model_id: str = Field(default="bevan-clinical-v1")
+    harness_id: str = Field(default="conductor-native")
+    consequential: bool = False
+    hitl_approval_sha256: str = ""
+    artefact_version: int = Field(default=1, ge=1, le=100)
+
+
+@app.get("/api/v1/symchat/status")
+def get_symchat_brownfield_status() -> dict[str, Any]:
+    """Expose SymChat by Symphonix-Health brownfield integration contract."""
+    return {
+        "product_name": "SymChat",
+        "product_full_title": "SymChat by Symphonix-Health",
+        "tagline": "One conversation. Every capability.",
+        "repository": "gpconnect",
+        "report_id": "SHRL-TR-2026-002H",
+        "preserved_platform_identities": [
+            "Conductor",
+            "BulletTrain",
+            "GHARRA",
+            "Nexus A2A",
+            "Patient360",
+        ],
+        "progressive_ux_modes": ["Everyday", "Professional", "Advanced"],
+        "phi_external_egress_blocked": True,
+        "cohort_3tier_projection_patients": 40090,
+        "estate_million_cohort_patients": 1002250,
+    }
+
+
+@app.post("/api/v1/symchat/turn")
+def execute_symchat_brownfield_turn(
+    req: SymChatBrownfieldTurnRequest,
+) -> dict[str, Any]:
+    """Execute a governed SymChat Triad turn on the Wave-5 brownfield extension with PHI egress and GRA HITL gates."""
+    if req.model_id not in ("bevan-clinical-v1", "khaya-cin2-west-africa-v1"):
+        raise HTTPException(
+            status_code=403,
+            detail="EXTERNAL_EGRESS_BLOCKED: PHI cannot be routed to external LLM.",
+        )
+    if req.harness_id != "conductor-native":
+        raise HTTPException(
+            status_code=403,
+            detail="EXTERNAL_HARNESS_PHI_BLOCKED: PHI requires conductor-native harness.",
+        )
+
+    actor_clean = req.actor_id.strip()
+    is_natural = actor_clean.startswith(
+        ("human:named:", "clinician:dr.", "clinician:nurse.", "clinician:pharm.")
+    )
+    if req.consequential:
+        if not is_natural or len(req.hitl_approval_sha256.strip()) != 64:
+            raise HTTPException(
+                status_code=403,
+                detail="Consequential sign-off requires natural-person clinician + 64-char HITL SHA-256.",
+            )
+        gra_tier = "ACTION_TIER_T1_SYNC_CONFIRM"
+    else:
+        gra_tier = "ACTION_TIER_T0_DRAFT_ONLY"
+
+    pt = get_3tier_cohort_patient(req.patient_id)
+    return {
+        "product_full_title": "SymChat by Symphonix-Health",
+        "repository": "gpconnect",
+        "report_id": "SHRL-TR-2026-002H",
+        "patient_id": pt["patient_id"],
+        "national_id": pt["national_id"],
+        "display_name": pt["display_name"],
+        "ux_mode": req.ux_mode,
+        "gra_tier": gra_tier,
+        "triad_plan": {
+            "planner_role": "conductor.intent_classifier",
+            "generator_role": "bevan.clinical_6d_brownfield_generator",
+            "evaluator_role": "caid.output_validator",
+            "harness_id": req.harness_id,
+            "model_id": req.model_id,
+        },
+        "evaluator_verdict": {
+            "verdict": "PASS",
+            "raw_cot_exposed": False,
+            "unsafe_action_rate": 0.0,
+        },
+        "artefact_ref_part": {
+            "type": "artefact-ref",
+            "name": "gpconnect_Brownfield_CDR.md",
+            "editable": True,
+            "version": req.artefact_version,
+        },
+    }

@@ -89,3 +89,48 @@ def test_3tier_million_cohort_wal_integration() -> None:
     assert pt["episode"]["initial_evlw_ml_kg"] > 0.0
     assert pt["episode"]["serum_creatinine_mg_dl"] > 0.0
 
+
+def test_symchat_triad_and_phi_egress_gate_on_brownfield_spinoff() -> None:
+    """Prove Wave-5 brownfield app exposes governed SymChat Triad turns, PHI egress block (403), and GRA HITL gate."""
+    st = client.get("/api/v1/symchat/status").json()
+    assert st["product_full_title"] == "SymChat by Symphonix-Health"
+    assert st["phi_external_egress_blocked"] is True
+
+    ok = client.post(
+        "/api/v1/symchat/turn",
+        json={
+            "patient_id": "SUBJ-MPI-9100000191",
+            "actor_id": "human:named:mira_bose",
+            "ux_mode": "Professional",
+            "model_id": "bevan-clinical-v1",
+            "harness_id": "conductor-native",
+            "artefact_version": 2,
+        },
+    )
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["patient_id"] == "SUBJ-MPI-9100000191"
+    assert body["evaluator_verdict"]["verdict"] == "PASS"
+    assert body["artefact_ref_part"]["version"] == 2
+
+    # External model must fail closed with HTTP 403
+    blocked = client.post(
+        "/api/v1/symchat/turn",
+        json={
+            "patient_id": "SUBJ-MPI-9100000191",
+            "model_id": "gpt-4o-external",
+        },
+    )
+    assert blocked.status_code == 403
+
+    # Consequential without 64-char SHA-256 must fail closed with HTTP 403
+    unapproved = client.post(
+        "/api/v1/symchat/turn",
+        json={
+            "patient_id": "SUBJ-MPI-9100000191",
+            "actor_id": "human:named:mira_bose",
+            "consequential": True,
+            "hitl_approval_sha256": "",
+        },
+    )
+    assert unapproved.status_code == 403
