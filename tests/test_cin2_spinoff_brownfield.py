@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from fastapi.testclient import TestClient
+
 from src.cin2_spinoff_brownfield_app import SEED_PATH, app
 
 client = TestClient(app)
@@ -91,10 +93,16 @@ def test_3tier_million_cohort_wal_integration() -> None:
 
 
 def test_symchat_triad_and_phi_egress_gate_on_brownfield_spinoff() -> None:
-    """Prove Wave-5 brownfield app exposes governed SymChat Triad turns, PHI egress block (403), and GRA HITL gate."""
+    """Prove spin-off app exposes governed SymChat Triad turns, Dual-Engine PG15+WAL parity, PHI egress block (403), and GRA HITL gate."""
     st = client.get("/api/v1/symchat/status").json()
     assert st["product_full_title"] == "SymChat by Symphonix-Health"
     assert st["phi_external_egress_blocked"] is True
+    assert st["dual_engine_status"]["postgresql_15"]["connected"] is True
+    assert st["dual_engine_status"]["postgresql_15"]["projection_patients"] == 40090
+    assert (
+        st["dual_engine_status"]["postgresql_15"]["client_registry_patients"] == 1002250
+    )
+    assert st["dual_engine_status"]["dual_engine_parity"] is True
 
     ok = client.post(
         "/api/v1/symchat/turn",
@@ -112,6 +120,11 @@ def test_symchat_triad_and_phi_egress_gate_on_brownfield_spinoff() -> None:
     assert body["patient_id"] == "SUBJ-MPI-9100000191"
     assert body["evaluator_verdict"]["verdict"] == "PASS"
     assert body["artefact_ref_part"]["version"] == 2
+    assert body["dual_engine_status"]["dual_engine_parity"] is True
+
+    retrieved = client.get(f"/api/v1/symchat/turns/{body['turn_id']}")
+    assert retrieved.status_code == 200
+    assert retrieved.json()["turn_id"] == body["turn_id"]
 
     # External model must fail closed with HTTP 403
     blocked = client.post(

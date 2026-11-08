@@ -206,25 +206,113 @@ def evaluate_four_branch_gate(req: SixDimensionEvaluationRequest) -> Dict[str, A
     return cdr_record
 
 
+PG_DSN = os.environ.get(
+    "BULLETTRAIN_PG_DSN",
+    "postgresql://bullettrain:devpassword@127.0.0.1:15432/bullettrain",
+)
+PG_SIBLING_SCHEMA = "sibling_gpconnect"
+
+
+def _query_pg_symchat_parity(patient_id: str | None = None) -> dict[str, Any]:
+    """Verify Dual-Engine parity between live PostgreSQL 15 (bt-postgres-dev) and 3-tier SQLite WAL (L-431)."""
+    import asyncio
+    import concurrent.futures
+
+    import asyncpg
+
+    wal_count = 0
+    if COHORT_3TIER_WAL_DB_PATH.exists():
+        wconn = sqlite3.connect(
+            f"file:{COHORT_3TIER_WAL_DB_PATH}?mode=ro", uri=True, timeout=10.0
+        )
+        try:
+            wal_count = int(
+                wconn.execute(
+                    "SELECT COUNT(*) FROM patients WHERE record_authority = 'projection'"
+                ).fetchone()[0]
+            )
+        finally:
+            wconn.close()
+
+    async def _pg_check() -> dict[str, Any]:
+        conn = await asyncpg.connect(PG_DSN, timeout=5.0)
+        try:
+            pg_proj = int(
+                await conn.fetchval(
+                    f"SELECT COUNT(*) FROM {PG_SIBLING_SCHEMA}.patients WHERE record_authority = 'projection'"
+                )
+            )
+            pg_cr = int(
+                await conn.fetchval("SELECT COUNT(*) FROM client_registry.patients")
+            )
+            pt_ok = True
+            if patient_id:
+                norm = patient_id.strip()
+                for pfx in ("SUBJ-MPI-", "MPI-", "NHS-"):
+                    if norm.upper().startswith(pfx):
+                        norm = norm[len(pfx) :].strip()
+                        break
+                subj = f"SUBJ-MPI-{norm}"
+                found = await conn.fetchval(
+                    f"SELECT patient_id FROM {PG_SIBLING_SCHEMA}.patients WHERE patient_id = $1 OR nationalid = $2 LIMIT 1",
+                    subj,
+                    norm,
+                )
+                pt_ok = found is not None
+            return {
+                "connected": True,
+                "schema": PG_SIBLING_SCHEMA,
+                "projection_patients": pg_proj,
+                "client_registry_patients": pg_cr,
+                "patient_verified": pt_ok,
+            }
+        finally:
+            await conn.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        pg_info = pool.submit(lambda: asyncio.run(_pg_check())).result(timeout=10.0)
+
+    return {
+        "postgresql_15": pg_info,
+        "sqlite_3tier_wal": {
+            "connected": COHORT_3TIER_WAL_DB_PATH.exists(),
+            "db_path": COHORT_3TIER_WAL_DB_PATH.name,
+            "projection_patients": wal_count,
+        },
+        "dual_engine_parity": (
+            pg_info["connected"]
+            and pg_info["projection_patients"] == wal_count == 40090
+            and pg_info["client_registry_patients"] == 1002250
+            and pg_info["patient_verified"]
+        ),
+    }
+
+
+_SYMCHAT_TURNS_MEM: dict[str, dict[str, Any]] = {}
+
+
 class SymChatBrownfieldTurnRequest(BaseModel):
     patient_id: str = Field(default="SUBJ-MPI-9100000191", min_length=3, max_length=64)
     actor_id: str = Field(default="human:named:mira_bose", min_length=3, max_length=128)
     prompt: str = Field(
-        default="Evaluate 6D brownfield safety gate via SymChat Triad",
+        default="Evaluate 6D safety gate via SymChat Triad",
         min_length=3,
         max_length=1000,
     )
-    ux_mode: str = Field(default="Professional")
-    model_id: str = Field(default="bevan-clinical-v1")
-    harness_id: str = Field(default="conductor-native")
+    ux_mode: str = Field(
+        default="Professional", pattern=r"^(Everyday|Professional|Advanced)$"
+    )
+    model_id: str = Field(default="bevan-clinical-v1", min_length=3, max_length=64)
+    harness_id: str = Field(default="conductor-native", min_length=3, max_length=64)
     consequential: bool = False
-    hitl_approval_sha256: str = ""
+    hitl_approval_sha256: str = Field(default="", max_length=128)
     artefact_version: int = Field(default=1, ge=1, le=100)
 
 
 @app.get("/api/v1/symchat/status")
 def get_symchat_brownfield_status() -> dict[str, Any]:
-    """Expose SymChat by Symphonix-Health brownfield integration contract."""
+    """Expose SymChat by Symphonix-Health integration & Dual-Engine PostgreSQL 15 + SQLite WAL parity."""
+    dual = _query_pg_symchat_parity()
     return {
         "product_name": "SymChat",
         "product_full_title": "SymChat by Symphonix-Health",
@@ -242,14 +330,25 @@ def get_symchat_brownfield_status() -> dict[str, Any]:
         "phi_external_egress_blocked": True,
         "cohort_3tier_projection_patients": 40090,
         "estate_million_cohort_patients": 1002250,
+        "persisted_symchat_turns": len(_SYMCHAT_TURNS_MEM),
+        "dual_engine_status": dual,
     }
+
+
+@app.get("/api/v1/symchat/turns/{turn_id}")
+def get_symchat_brownfield_turn(turn_id: str) -> dict[str, Any]:
+    if turn_id not in _SYMCHAT_TURNS_MEM:
+        raise HTTPException(
+            status_code=404, detail=f"SymChat turn {turn_id!r} not found"
+        )
+    return _SYMCHAT_TURNS_MEM[turn_id]
 
 
 @app.post("/api/v1/symchat/turn")
 def execute_symchat_brownfield_turn(
     req: SymChatBrownfieldTurnRequest,
 ) -> dict[str, Any]:
-    """Execute a governed SymChat Triad turn on the Wave-5 brownfield extension with PHI egress and GRA HITL gates."""
+    """Execute a governed SymChat Triad turn with PHI egress gate, GRA HITL gate, and Dual-Engine PG15+WAL parity."""
     if req.model_id not in ("bevan-clinical-v1", "khaya-cin2-west-africa-v1"):
         raise HTTPException(
             status_code=403,
@@ -276,7 +375,15 @@ def execute_symchat_brownfield_turn(
         gra_tier = "ACTION_TIER_T0_DRAFT_ONLY"
 
     pt = get_3tier_cohort_patient(req.patient_id)
-    return {
+    dual = _query_pg_symchat_parity(req.patient_id)
+    turn_id = (
+        "sym-"
+        + hashlib.sha256(
+            f"{req.patient_id}:{req.prompt}:{req.artefact_version}".encode()
+        ).hexdigest()[:12]
+    )
+    res = {
+        "turn_id": turn_id,
         "product_full_title": "SymChat by Symphonix-Health",
         "repository": "gpconnect",
         "report_id": "SHRL-TR-2026-002H",
@@ -303,4 +410,7 @@ def execute_symchat_brownfield_turn(
             "editable": True,
             "version": req.artefact_version,
         },
+        "dual_engine_status": dual,
     }
+    _SYMCHAT_TURNS_MEM[turn_id] = res
+    return res
