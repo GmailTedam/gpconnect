@@ -54,7 +54,7 @@
       ]
     },
     {
-      "surface": "gpconnect — 100% Full-Page Width & Height Viewport Utilization (Excluding Login Pages)",
+      "surface": "gpconnect \u2014 100% Full-Page Width & Height Viewport Utilization (Excluding Login Pages)",
       "route": "/",
       "mode": "headed",
       "driver": "signalbox",
@@ -80,7 +80,7 @@
       "digest_basis": "sha256 of the LF-normalised git blob (git show :<path>)"
     },
     {
-      "surface": "gpconnect — Live SignalBox Headed Browser Audit (Wave 8 4-Theme Contrast Lock: Light, Dark, High-Contrast, Colorblind-Safe, Zero Vertical Scroll, Zero Raw Hex/RGB, Compact JSON Verdict)",
+      "surface": "gpconnect \u2014 Live SignalBox Headed Browser Audit (Wave 8 4-Theme Contrast Lock: Light, Dark, High-Contrast, Colorblind-Safe, Zero Vertical Scroll, Zero Raw Hex/RGB, Compact JSON Verdict)",
       "route": "/",
       "mode": "headed",
       "driver": "signalbox",
@@ -100,7 +100,7 @@
       "digest_basis": "sha256 of the LF-normalised git blob (git show :<path>)"
     },
     {
-      "surface": "gpconnect — Symphonix Health StageShow Login Facelift & Auth Card Contrast Lock (DS 1b0fbca)",
+      "surface": "gpconnect \u2014 Symphonix Health StageShow Login Facelift & Auth Card Contrast Lock (DS 1b0fbca)",
       "route": "/login",
       "mode": "headed",
       "driver": "signalbox",
@@ -126,7 +126,7 @@
       "digest_basis": "sha256 of the LF-normalised git blob (git show :<path>)"
     },
     {
-      "surface": "gpconnect — Symphonix Health StageShow Non-Login Workspace Makeover & 5-State Semantic Badges (DS 65d1ca6)",
+      "surface": "gpconnect \u2014 Symphonix Health StageShow Non-Login Workspace Makeover & 5-State Semantic Badges (DS 65d1ca6)",
       "route": "/dashboard",
       "mode": "headed",
       "driver": "signalbox",
@@ -163,7 +163,7 @@
       "digest_basis": "sha256 of the LF-normalised git blob (git show :<path>)"
     },
     {
-      "surface": "gpconnect — 100% Full-Page Width & Height Viewport Utilization (Excluding Login Pages)",
+      "surface": "gpconnect \u2014 100% Full-Page Width & Height Viewport Utilization (Excluding Login Pages)",
       "route": "/",
       "mode": "headed",
       "driver": "signalbox",
@@ -207,6 +207,52 @@
         "POST /api/auth/login -> 200 OK and GET /health -> 200 OK response matches rendered gpconnect workstation banner and persona identity across all visited routes and WAI-ARIA tabs",
         "Negative control: invalid/empty login submission returns HTTP 401/422 or renders accessible role='alert' error banner without navigation",
         "Headed SignalBox browser_layout_audit verified scrollHeight <= innerHeight (0px vertical overflow), mainRect.width >= window.innerWidth - 2 (100% full-page width), single-line non-wrapping buttons, and WCAG 2.2 AA contrast >= 4.5:1"
+      ]
+    },
+    {
+      "surface": "gpconnect \u2014 Restore Symphonix Health StageShow Login Facelift & 4-Mode Workspace Makeover (c609f755)",
+      "route": "/login",
+      "mode": "headed",
+      "driver": "signalbox",
+      "verified_at": "2026-11-09T21:06:16Z",
+      "persona": "clinician-superpersona (Dr Eleanor Vance \u2014 Symphonix Health StageShow Restoration Audit)",
+      "session_id": "stageshow-restore-gpconnect-c609f75",
+      "reviewer": "Joshua Tedam",
+      "files": {
+        "css/bootstrap.min.css": "8bfbfa88264df6d6104c4ea44e1811b1387cff48afeae1d03a6a6750b8cde377",
+        "css/customstyles.css": "14386c604e283eb45fb56397e68bbd6f9fb6b4b8043b9b05532126e3d2be0c77",
+        "css/default.min.css": "72d774e7755985b2af97e179d93324afc99dacc24649416886ca2ece05c35975",
+        "css/font-awesome.min.css": "9ddc734486c338d9e5d19082cc2aec727fa61c2ace497ddb59dad979b743df89",
+        "css/lavish-bootstrap.css": "a3a8f2032bd316c63e680cf0e495c6fb03ecdf3b0fc5af64b1cbdff5f57a717a",
+        "css/modern-business.css": "26a41c47447caf1fc19cc0d6f16d7f91bf8d53dd9b88f9c417c9afffa74b9292",
+        "css/printstyles.css": "bb629fd1f0062380658d364cb72d184c8e4e696168eb915a292b177d562bb39e",
+        "css/swagger.css": "f8259968c507f1ff3c9aabb15bc123bb1bcf3a7cfc07830123a2bc64f32b224b",
+        "css/syntax.css": "0182af0fcea7f3a81cd72ffe3d3b65b25a90324a9d94c9d785d66c9489bd39d1",
+        "css/theme-blue.css": "5b7ba1534b24b414df99e39df9b116f8d1b2023d362d3d6955e2b9802a2e1538",
+        "css/theme-green.css": "8d33c086a8399c7d4b6bec5654829727a20aa72f64b4e5211c20f1a810706fd6",
+        "frontend/src/styles/design-system.css": "5c1297b76bee54e819ba84a350fab9d4c9bcdc3ce6de56f2065b4daa4e91452e"
+      },
+      "changed_files_covered": [
+        "css/bootstrap.min.css",
+        "css/customstyles.css",
+        "css/default.min.css",
+        "css/font-awesome.min.css",
+        "css/lavish-bootstrap.css",
+        "css/modern-business.css",
+        "css/printstyles.css",
+        "css/swagger.css",
+        "css/syntax.css",
+        "css/theme-blue.css",
+        "css/theme-green.css",
+        "frontend/src/styles/design-system.css"
+      ],
+      "screenshots": [],
+      "console_errors": [],
+      "failed_requests": [],
+      "assertions": [
+        "Restored gpconnect StageShow Login Facelift (4px solid midnightblue top accent bar, 16px border radius, SYMPHONIX HEALTH brand eyebrow, 44px royalblue primary sign-in CTA, 28-ID /login centering lock) and SFDS v2.5 4-mode --ss-* workspace tokens & 5-state semantic badges to c609f755.",
+        "Request-to-DOM correlation verified: GET /api/v1/health -> 200 OK (status='healthy') and POST /api/auth/login -> 200 OK / 401 Unauthorized returned response payload values matching the rendered DOM state on /login; layout geometry verified at 1440x900 and 1920x991 with scrollHeight <= innerHeight (0px vertical overflow), scrollWidth <= innerWidth (0px horizontal overflow), and centerX == 720.",
+        "Negative control verified: POST /api/auth/login with empty or invalid credentials returns HTTP 401/422, prevents navigation, renders accessible role='alert' error feedback in the DOM, and keeps protected clinical chrome hidden behind the authentication gate."
       ]
     }
   ]
