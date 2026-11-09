@@ -484,7 +484,7 @@ def render_sfds_iva_workstation() -> str:
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="data:," />
-  <title>gpconnect — SFDS v2.4 & SignalBox Voice Co-Pilot Clinical Physics Workstation</title>
+  <title>Symphonix Health · gpconnect — SFDS v2.4 & SignalBox Voice Co-Pilot Clinical Physics Workstation</title>
   <style>
     :root, html[data-theme="dark"] {
       --f-sans: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
@@ -695,7 +695,7 @@ def render_sfds_iva_workstation() -> str:
       gap: 2px;
     }
     .metric-label { font-size: 11px; color: var(--sfds-muted); font-weight: 600; white-space: nowrap; }
-    .metric-val { font-size: 14px; font-weight: 700; color: var(--sfds-text); white-space: nowrap; }
+    .metric-val { font-size: 14px; font-weight: 700; color: var(--sfds-text); white-space: nowrap; font-variant-numeric: tabular-nums; }
     .metric-sub { font-size: 11px; color: var(--sfds-muted); white-space: nowrap; }
     .subtab-bar {
       display: flex;
@@ -722,6 +722,7 @@ def render_sfds_iva_workstation() -> str:
     .card {
       background: var(--sfds-surface);
       border: 1px solid var(--sfds-border);
+      box-shadow: inset 0 3px 0 0 #4f46e5;
       border-radius: 8px;
       padding: 8px 12px;
     }
