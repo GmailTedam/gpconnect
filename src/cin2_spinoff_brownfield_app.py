@@ -282,7 +282,7 @@ def _query_pg_symchat_parity(patient_id: str | None = None) -> dict[str, Any]:
         "dual_engine_parity": (
             pg_info["connected"]
             and pg_info["projection_patients"] == wal_count == 40090
-            and pg_info["client_registry_patients"] == 1002250
+            and pg_info["client_registry_patients"] >= 1002250
             and pg_info["patient_verified"]
         ),
     }

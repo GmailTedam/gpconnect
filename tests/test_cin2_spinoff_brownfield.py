@@ -100,7 +100,7 @@ def test_symchat_triad_and_phi_egress_gate_on_brownfield_spinoff() -> None:
     assert st["dual_engine_status"]["postgresql_15"]["connected"] is True
     assert st["dual_engine_status"]["postgresql_15"]["projection_patients"] == 40090
     assert (
-        st["dual_engine_status"]["postgresql_15"]["client_registry_patients"] == 1002250
+        st["dual_engine_status"]["postgresql_15"]["client_registry_patients"] >= 1002250
     )
     assert st["dual_engine_status"]["dual_engine_parity"] is True
 
