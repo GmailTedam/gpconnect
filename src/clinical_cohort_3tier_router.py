@@ -311,6 +311,105 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
       display: flex;
       flex-direction: column;
     }}
+    [data-theme="light"] body {{
+      background: #f8fafc;
+      color: #0f172a;
+    }}
+    [data-theme="light"] .sfds-header {{
+      background-color: #eff6ff;
+      border-color: #cbd5e1;
+    }}
+    [data-theme="light"] .sfds-header h1 {{
+      color: #1e3a8a;
+    }}
+    [data-theme="light"] .sfds-badge {{
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: #1e293b;
+    }}
+    [data-theme="light"] .sfds-tablist {{
+      background: #f1f5f9;
+      border-bottom-color: #cbd5e1;
+    }}
+    [data-theme="light"] .sfds-tab {{
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: #334155;
+    }}
+    [data-theme="light"] .sfds-tab[aria-selected="true"] {{
+      background: #1e3a8a;
+      border-color: #1e3a8a;
+      color: #ffffff;
+    }}
+    [data-theme="light"] .sfds-tabpanel {{
+      background: #ffffff;
+      border-color: #cbd5e1;
+    }}
+    [data-theme="light"] .sfds-card {{
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }}
+    [data-theme="light"] .sfds-card-label {{
+      color: #475569;
+    }}
+    [data-theme="light"] .sfds-card-val {{
+      color: #0f172a;
+    }}
+    [data-theme="light"] .sfds-control label {{
+      color: #334155;
+    }}
+    [data-theme="light"] .sfds-control input,
+    [data-theme="light"] .sfds-control select {{
+      background: #ffffff;
+      border-color: #64748b;
+      color: #0f172a;
+    }}
+    [data-theme="light"] table.sfds-table th,
+    [data-theme="light"] table.sfds-table td {{
+      border-bottom-color: #e2e8f0;
+      color: #0f172a;
+    }}
+    [data-theme="light"] table.sfds-table th {{
+      background: #f1f5f9;
+      color: #1e3a8a;
+    }}
+    [data-theme="light"] .sfds-status-msg {{
+      background: #eff6ff;
+      border-color: #93c5fd;
+      color: #1e3a8a;
+    }}
+    [data-theme="light"] .sfds-ai-card {{
+      background: #eff6ff !important;
+      border-color: #93c5fd !important;
+      color: #0f172a !important;
+    }}
+    [data-theme="light"] .sfds-ai-card * {{
+      color: #0f172a !important;
+    }}
+    [data-theme="light"] .sfds-panel-annotation {{
+      background: #e2e8f0 !important;
+      border-color: #94a3b8 !important;
+      color: #0f172a !important;
+    }}
+    [data-theme="light"] .sfds-panel-annotation * {{
+      color: #0f172a !important;
+    }}
+    [data-theme="light"] .sfds-leader-pin {{
+      border-color: #0284c7 !important;
+      color: #0369a1 !important;
+    }}
+    [data-theme="light"] .sfds-leader-line {{
+      background: #0284c7 !important;
+    }}
+    [data-theme="light"] .sfds-presence-pill {{
+      background: #ffffff !important;
+      border-color: #cbd5e1 !important;
+      color: #0f172a !important;
+    }}
+    [data-theme="light"] .sfds-ai-provenance-footer {{
+      border-top-color: #cbd5e1 !important;
+      color: #475569 !important;
+    }}
     .sfds-shell {{
       width: 100%;
       max-width: none;
