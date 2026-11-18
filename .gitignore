@@ -6,3 +6,7 @@ _pdf
 .vscode/
 .bundle/
 .gems/
+
+data/*.db*
+__pycache__/
+*.pyc
