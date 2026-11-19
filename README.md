@@ -44,3 +44,10 @@ In compliance with Symphonix-Health mandate **L-431**, `gpconnect` operates a sy
    - `GET /api/v1/cohort/3tier/patients` & `GET /api/v1/cohort/3tier/patients/{patient_id}` — Patient trajectory and episode queries.
    - `POST /api/v1/cohort/3tier/episodes` — Synchronous dual-engine WORM episode creation across PostgreSQL 15 and SQLite WAL.
 <!-- symphonix-dual-engine-architecture:end -->
+
+## ChartRecall (`Memorilla-v2`) 3-Tier Clinical Decision Support Integration (`clinical_cohort_3tier_router.py`)
+
+- **Clinician-Facing Service & Icon**: **`ChartRecall`** (`clinical_service_name="ChartRecall"`, `clinical_icon="stethoscope-synapse-spark"`, `engine="MemorillaV2Module"`, `operating_mode="M2_HYBRID_MEMORILLA_GOVERNED"`).
+- **3-Tier Cohort & On-Demand Agentic CDS Endpoints**:
+  - `GET /api/v1/million-cohort/patients/{patient_id}/clinical-decision-context`: Returns `chartrecall_live_cds` with bounded-rationality (`<= 3` cards) Tier-0 `D4_ALLERGY_RENAL_PGX`, `D1_D2_D5_DIAGNOSTIC_PREREQ`, and `D3_D6_LONGITUDINAL_PATHWAY` cards synthesized from `gpconnect` dual-engine (`PostgreSQL 15` + `3-Tier SQLite WAL`) patient and episode records.
+  - `POST /api/v1/million-cohort/patients/{patient_id}/chartrecall-evaluate`: Evaluates live consultation utterances or specialist prescribing/diagnostic/pathway queries against the patient's 3-tier record with two-state calibrated abstention (`CONVERSATIONAL_QUIET` vs. `PROTECTIVE_SAFETY_HOLD`) and `HCI-STE001` dual-layer explanations.
