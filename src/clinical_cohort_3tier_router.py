@@ -1087,7 +1087,7 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
             </table>
           </div>
         </div>
-        <div class="sfds-card" style="display:flex; flex-direction:column; justify-content:space-between; min-height:0; height:100%;">
+        <div class="sfds-card" style="display:flex; flex-direction:column; justify-content:flex-start; gap:10px; min-height:0; height:100%;">
           <div>
             <div class="sfds-card-label">Dual-Engine 3-Tier &amp; DCB0160 Validation Contract</div>
             <div class="sfds-contract-body" style="font-size:12px; line-height:1.55; padding:6px;">
@@ -1097,7 +1097,7 @@ def _render_workbench_html(service_name: str, sibling_slug: str) -> str:
               <div><strong>4. Full-Viewport StageShow Surface:</strong> Zero <code>fade-crop</code> masking (<code>mask-image: none</code>) and zero <code>Bar</code> placeholder bars on clinical tables.</div>
             </div>
           </div>
-          <div class="sfds-ai-provenance-footer">
+          <div class="sfds-ai-provenance-footer" style="margin-top:auto;">
             <span>Engine: <code>SQLite WAL + PostgreSQL 15 (sibling_{sibling_slug})</code></span>
             <span>Safety: <code>DCB0129 / DCB0160 Verified</code></span>
           </div>
